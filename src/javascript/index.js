@@ -1,79 +1,122 @@
+// THREE
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
-import Sizes from './Utils/Sizes.js'
-import Time from './Utils/Time.js'
 
+// Classes
+require('./Utils/Stats');
+
+// Constants
 global.THREE = THREE;
+const DEFAULT_CAMERA = '[default]';
 
 class WebGL {
-    constructor() {
-        this.$canvas = document.getElementsByClassName("canvas")[0];
-        this.sizes = new Sizes();
-        this.time = new Time();
+    constructor(_options) {
+        // variables
+        this.$canvas = _options.canvas;
         this.lights = [];
+        this.content = null;
+        this.mixer = null;
+        this.wheels = [];
 
-        this.setEnvironment();
-    }
-    setEnvironment() {
+        // state
+        this.state = {
+            camera: DEFAULT_CAMERA,
+            carLoaded: false,
+            wheelsCanRotate: false,
+            wheelSpeed: 0.1,
+
+            // Lights
+            addLights: true,
+            exposure: 1.0,
+            textureEncoding: 'sRGB',
+            ambientIntensity: 0.3,
+            ambientColor: 0xFFFFFF,
+            directIntensity: 0.8 * Math.PI, // TODO(#116)
+            directColor: 0xFFFFFF,
+        };
+
+        this.prevTime = 0;
+
         // Scene
-        this.scene = new THREE.Scene()
-        this.scene.background = new THREE.Color( 0xa0a0a0 );
-
-        // Renderer
-        this.renderer = new THREE.WebGLRenderer({ canvas: this.$canvas })
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-        this.renderer.setSize(this.sizes.viewport.width, this.sizes.viewport.height)
+        this.scene = new THREE.Scene();
 
         // Camera
-        this.camera = new THREE.PerspectiveCamera(
-            0.8 * 180 / Math.PI,
-            this.sizes.viewport.width /
-            this.sizes.viewport.height,
-            0.01,
-            1000,
-        );
-        this.scene.add(this.camera)
+        const fov = 60;
+        this.defaultCamera = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight, 0.01, 1000);
+        this.activeCamera = this.defaultCamera;
+        this.scene.add(this.defaultCamera);
 
-        // OrbitControl
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enabled = true;
+        // Renderer
+        this.renderer = window.renderer = new THREE.WebGLRenderer({ antialias: true, canvas: this.$canvas });
+        this.renderer.physicallyCorrectLights = true;
+        this.renderer.gammaOutput = true;
+        this.renderer.gammaFactor = 2.2;
+        this.renderer.setClearColor(0xcccccc);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+
+        // Controls
+        this.controls = new OrbitControls(this.defaultCamera, this.renderer.domElement);
+        this.controls.autoRotate = false;
+        this.controls.autoRotateSpeed = -10;
+        this.controls.screenSpacePanning = true;
 
         // Background
-        this.scene.background =  new THREE.CubeTextureLoader()
-        .setPath("environment/")
-        .load([
-            'px.jpg',
-            'nx.jpg',
-            'py.jpg',
-            'ny.jpg',
-            'pz.jpg',
-            'nz.jpg'
-        ])
+        this.background = new THREE.CubeTextureLoader()
+            .setPath("environment/envSky/")
+            .load([
+                'px.jpg',
+                'nx.jpg',
+                'py.jpg',
+                'ny.jpg',
+                'pz.jpg',
+                'nz.jpg'
+            ]);
+        this.scene.background = this.background;
 
-        // Load GLTF
-        this.initialGLTF()
+        // Animate
+        this.animate = this.animate.bind(this);
+        requestAnimationFrame(this.animate);
 
-        // Add Lights
-        this.setLights();
+        // Resize listener
+        window.addEventListener('resize', this.resize.bind(this), false);
 
-        // Time tick
-        this.time.on('tick', () => {
-            // Renderer
-            this.renderer.render(this.scene, this.camera)
-            this.controls.update();
-        })
-
-        // Resize
-        this.sizes.on('resize', () => {
-            this.camera.aspect = this.sizes.viewport.width / this.sizes.viewport.height
-            this.camera.updateProjectionMatrix()
-
-            this.renderer.setSize(this.sizes.viewport.width, this.sizes.viewport.height);
-        })
+        // Start Loading
+        this.load();
     }
-    initialGLTF() {
+    animate(time) {
+        requestAnimationFrame(this.animate);
+
+        const dt = (time - this.prevTime) / 1000;
+        this.controls.update();
+        this.mixer && this.mixer.update(dt);
+        this.render();
+
+        if (this.state.carLoaded && this.wheels.length === 4) {
+            this.rotateWheels(this.wheels[0]);
+            this.rotateWheels(this.wheels[1]);
+            this.rotateWheels(this.wheels[2]);
+            this.rotateWheels(this.wheels[3]);
+        }
+
+        this.prevTime = time;
+    }
+    render() {
+        this.renderer.render(this.scene, this.activeCamera);
+    }
+    resize() {
+
+        const width = window.innerWidth, height = window.innerHeight;
+
+        this.defaultCamera.aspect = width / height;
+        this.defaultCamera.updateProjectionMatrix();
+        this.renderer.setSize(width, height);
+
+    }
+    load() {
+
         // Draco
         const dracoLoader = new DRACOLoader()
         dracoLoader.setDecoderPath('draco/')
@@ -82,54 +125,192 @@ class WebGL {
         // GLTF
         const gltfLoader = new GLTFLoader()
         gltfLoader.setDRACOLoader(dracoLoader)
+        gltfLoader.setCrossOrigin('anonymous')
 
-        gltfLoader.load("corolla_draco.gltf", (gltf) => {
-            var object = gltf.scene;
+        const file = "corolla_draco.gltf";
+        gltfLoader.load(file, (gltf) => {
 
-            const box = new THREE.Box3().setFromObject(object);
-            const size = box.getSize(new THREE.Vector3()).length();
-            const center = box.getCenter(new THREE.Vector3());
+            const scene = gltf.scene || gltf.scenes[0];
+            this.setContent(scene);
 
-            // reset OrbitControl
-            this.controls.reset();
+        }, undefined, (error) => {
+            console.error("Error: ", error)
+        });
 
-            object.position.x += (object.position.x - center.x);
-            object.position.y += (object.position.y - center.y);
-            object.position.z += (object.position.z - center.z);
-
-            this.controls.maxDistance = size * 10;
-
-            this.camera.near = size / 100;
-            this.camera.far = size * 100;
-
-            this.camera.position.copy(center);
-            this.camera.position.x += size / 2.0;
-            this.camera.position.y += size / 5.0;
-            this.camera.position.z += size / 2.0;
-            this.camera.lookAt(center);
-
-            this.gltf = object;
-            this.scene.add(this.gltf);
-        },
-            this.manageLoading,
-            this.gltfLoadErr);
     }
-    manageLoading(xhr) {
-        console.log(Math.round(xhr.loaded / xhr.total * 100) + '% loaded');
+    setContent(object) {
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3()).length();
+        const center = box.getCenter(new THREE.Vector3());
+
+        this.controls.reset();
+
+        // object.position.x += (object.position.x - center.x);
+        object.position.x = 0;
+        object.position.y += (object.position.y - center.y);
+        object.position.z += (object.position.z - center.z);
+
+        this.controls.minDistance = size / 1.5;
+        this.controls.maxDistance = size * 1.5;
+        this.controls.maxPolarAngle = 0.9 * Math.PI / 2;
+
+        this.defaultCamera.near = size / 100;
+        this.defaultCamera.far = size * 100;
+        this.defaultCamera.updateProjectionMatrix();
+
+        this.defaultCamera.position.copy(center);
+        this.defaultCamera.position.x += size / 2.0;
+        this.defaultCamera.position.y += size / 5.0;
+        this.defaultCamera.position.z += size / 2.0;
+        this.defaultCamera.lookAt(center);
+
+        this.setCamera(DEFAULT_CAMERA);
+
+        this.controls.saveState();
+
+        this.scene.add(object);
+        this.content = object;
+
+        this.state.addLights = true;
+        this.content.traverse((node) => {
+            if (node.isLight) {
+                this.state.addLights = false;
+            }
+        });
+
+        this.updateLights();
+        this.updateEnvironment();
+        this.updateTextureEncoding();
+
+        // set car objects
+        this.state.carLoaded = true;
+        this.state.wheelsCanRotate = true;
+        this.setCarObjects();
+
+        window.content = this.content;
+        console.info('[glTF Loader] THREE.Scene exported as `window.content`.');
+        // this.printGraph(this.content);
+
     }
-    gltfLoadErr(err) {
-        console.error('An error happened: ', err);
+    setCamera(name) {
+        if (name === DEFAULT_CAMERA) {
+            this.controls.enabled = true;
+            this.activeCamera = this.defaultCamera;
+        } else {
+            this.controls.enabled = false;
+            this.content.traverse((node) => {
+                if (node.isCamera && node.name === name) {
+                    this.activeCamera = node;
+                }
+            });
+        }
     }
-    setLights() {
-        const light1 = new THREE.AmbientLight(0xFFFFFF, 0.3);
+    updateLights() {
+        const state = this.state;
+        const lights = this.lights;
+
+        if (state.addLights && !lights.length) {
+            this.addLights();
+        } else if (!state.addLights && lights.length) {
+            this.removeLights();
+        }
+
+        this.renderer.toneMappingExposure = state.exposure;
+
+        if (lights.length === 2) {
+            lights[0].intensity = state.ambientIntensity;
+            lights[0].color.setHex(state.ambientColor);
+            lights[1].intensity = state.directIntensity;
+            lights[1].color.setHex(state.directColor);
+        }
+    }
+    addLights() {
+        const state = this.state;
+
+        const light1 = new THREE.AmbientLight(state.ambientColor, state.ambientIntensity);
         light1.name = 'ambient_light';
-        this.camera.add(light1);
+        this.defaultCamera.add(light1);
 
-        const light2 = new THREE.DirectionalLight(0xFFFFFF, 0.8 * Math.PI);
-        light2.position.set(0.5, 0, 0.866);
+        const light2 = new THREE.DirectionalLight(state.directColor, state.directIntensity);
+        light2.position.set(0.5, 0, 0.866); // ~60º
         light2.name = 'main_light';
-        this.camera.add(light2);
+        this.defaultCamera.add(light2);
+
+        this.lights.push(light1, light2);
+    }
+    removeLights() {
+        this.lights.forEach((light) => light.parent.remove(light));
+        this.lights.length = 0;
+    }
+    updateEnvironment() {
+
+        this.getCubeMapTexture().then(({ envMap, cubeMap }) => {
+            this.traverseMaterials(this.content, (material) => {
+                if (material.isMeshStandardMaterial || material.isGLTFSpecularGlossinessMaterial) {
+                    material.envMap = envMap;
+                    material.needsUpdate = true;
+                }
+            });
+        });
+
+    }
+    getCubeMapTexture() {
+        return new Promise((resolve) => {
+            const envMap = new THREE.CubeTextureLoader()
+                .setPath("environment/envReflection/")
+                .load([
+                    'px.jpg',
+                    'nx.jpg',
+                    'py.jpg',
+                    'ny.jpg',
+                    'pz.jpg',
+                    'nz.jpg'
+                ]);
+            envMap.format = THREE.RGBFormat;
+            console.log(envMap)
+            resolve({ envMap, cubeMap: envMap })
+        })
+    }
+    updateTextureEncoding() {
+        // const encoding = this.state.textureEncoding === 'sRGB' ? THREE.sRGBEncoding : THREE.LinearEncoding;
+        const encoding = THREE.sRGBEncoding;
+        this.traverseMaterials(this.content, (material) => {
+            if (material.map) material.map.encoding = encoding;
+            if (material.emissiveMap) material.emissiveMap.encoding = encoding;
+            if (material.map || material.emissiveMap) material.needsUpdate = true;
+        });
+    }
+    setCarObjects() {
+        [
+            "WheelBR",
+            "WheelBL",
+            "WheelFR",
+            "WheelFL",
+        ].map((name) => {
+            this.content.traverse((node) => (node.name === name) && this.wheels.push(node));
+        })
+    }
+    rotateWheels(wheel) {
+        if (this.state.wheelsCanRotate) {
+            wheel.rotation.x += this.state.wheelSpeed;
+        }
+    }
+    printGraph(node) {
+        console.group(' <' + node.type + '> ' + node.name);
+        node.children.forEach((child) => this.printGraph(child));
+        console.groupEnd();
+    }
+    traverseMaterials(object, callback) {
+        object.traverse((node) => {
+            if (!node.isMesh) return;
+            const materials = Array.isArray(node.material)
+                ? node.material
+                : [node.material];
+            materials.forEach(callback);
+        });
     }
 }
 
-window.application = new WebGL();
+window.application = new WebGL({
+    canvas: document.getElementsByClassName("canvas")[0]
+});
