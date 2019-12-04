@@ -7,9 +7,49 @@
 
     <title>Toyota WebGL 2019</title>
 
+    <link rel="stylesheet" href="./style/reboot.css">
     <link rel="stylesheet" href="./style/main.css">
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700,800&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div class="preload-screen" id="preload_screen">
+        <div class="content">
+            <img src="../static/logo.jpg" style="width: 150px;" alt="Toyota" />
+            <h1>Toyota corolla xle 2020 3D tour</h1>
+            <p>We're loading assets...</p>
+            <div class="progressbar-track">
+                <span class="progressbar-thumb" id="progressbar_thumb" style="width: 0%;"></span>
+            </div>
+        </div>
+    </div>
+    <div class="controls" style="display: none;">
+        <ul>
+            <li class="user_control_1" data-control="dimensions">Dimensions <span>.1</span></li>
+            <li class="user_control_2" data-control="aerodynamics">Aerodynamics <span>.2</span></li>
+            <li class="user_control_3" data-control="front_lighting">Front Lighting <span>.3</span></li>
+            <li class="user_control_4" data-control="rear_lighting">Rear Lighting <span>.4</span></li>
+            <li class="user_control_5" data-control="wheel_steering">4-Wheel Steering <span>.5</span></li>
+            <li class="user_control_6 active" data-control="free_viewing">Free Viewing <span>.6</span></li>
+        </ul>
+    </div>
+    <div class="steering-control">
+        <button type="button" id="steer_left">
+            <img src="../static/arrow.png" />
+            Turn Left
+        </button>
+        <button type="button" id="steer_right">
+            Turn Right
+            <img src="../static/arrow.png" />
+        </button>
+    </div>
+    <div class="floated-box" id="dimensions_box" style="opacity: 0; pointer-events: none; right: 60%; top: 10%;">
+        <h2>Dimensions</h2>
+        <p>Lorem ipsum is placeholder text commonly used in the graphic, print, and publishing industries for previewing layouts and visual mockups.</p>
+    </div>
+    <div class="floated-box" id="aerodynamics_box" style="opacity: 0; pointer-events: none;  right: 30%; top: 5%;">
+        <h2>Aerodynamics</h2>
+        <p>Lorem ipsum is placeholder text commonly used in the graphic, print, and publishing industries for previewing layouts and visual mockups.</p>
+    </div>
     <canvas class="canvas js-canvas"></canvas>
     <script src="./javascript/index.js"></script>
 
