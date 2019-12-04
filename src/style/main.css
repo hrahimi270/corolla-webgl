@@ -1,25 +1,163 @@
-*
-{
-    padding: 0;
-    margin: 0;
+html, body {
+    font-family: 'Open Sans', sans-serif;
 }
 
-body,
-html
-{
+.canvas{
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
+}
+
+/* preload screen */
+.preload-screen {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: #ffffff;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    z-index: 999;
+}
+.preload-screen .content{
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+
+    text-transform: uppercase;
+    color: #6f7577;
+}
+.preload-screen .content img {
+    margin-bottom: 5rem;
+}
+.preload-screen .content h1 {
+    font-size: 1.2rem;
+}
+.progressbar-track {
+    width: 150px;
+    height: 20px;
+    background-color: #e6e6e6;
+    border-radius: 100px;
     overflow: hidden;
 }
+.progressbar-thumb {
+    display: block;
+    height: 20px;
+    background-color: #2196F3;
+    border-radius: 100px;
+    transition: all 400ms ease-in-out;
+}
 
-.canvas
-{
+/* controls */
+.controls {
     position: fixed;
     top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    right: 0;
+    left: unset;
+    bottom: 0;
+    min-width: 200px;
+
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    z-index: 888;
+}
+
+.controls ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    padding-right: 2rem;
+}
+
+.controls ul li {
+    text-align: right;
+    padding: 0.5rem 0;
+    cursor: pointer;
+    font-weight: 400;
+    color: #333333;
+    transition: all 400ms ease-in-out;
+}
+.controls ul li:hover {
+    color: #eb0a1d;
+}
+.controls ul li.active {
+    color: #eb0a1d;
+    margin-right: 15px;
+}
+.controls ul li span {
+    margin-left: 0.5rem;
+    font-size: 20px;
+}
+
+/* steering controls */
+.steering-control {
+    position: fixed;
+    bottom: 100px;
+    left: 100px;
+    display: flex;
+    align-items: center;
+    z-index: 888;
+
+    opacity: 0;
+    pointer-events: none;
+    transition: all 400ms ease-in-out;
+}
+.steering-control.visible {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.steering-control button {
+    padding: 5px 15px;
+    background-color: #fff;
+    color: #000;
+    box-shadow: none;
+    outline: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin: 0 0.3rem;
+}
+.steering-control button img {
+    width: 20px;
+}
+.steering-control button:first-child img {
+    transform: rotateZ(180deg);
+}
+
+/* floated box */
+.floated-box {
+    position: fixed;
+    max-width: 400px;
+    min-height: 200px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    padding: 1rem;
+    z-index: 888;
+    transition: all 400ms ease-in-out;
+}
+
+.floated-box h2 {
+    color: #fff;
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+}
+
+.floated-box p {
+    margin: 0;
+    color: #fafafa;
+    font-size: 17px;
+}
+
+/* GUI */
+.dg.ac {
+    z-index: 889 !important;
 }
