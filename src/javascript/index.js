@@ -68,7 +68,7 @@ class WebGL {
         this.state = {
             carLoaded: false,
             wheelsCanRotate: false,
-            wheelSpeed: 0.05,
+            wheelSpeed: 0.025,
             addLights: true,
             envMapIntensity: 1,
             emissiveIntensity: 3,
@@ -77,7 +77,13 @@ class WebGL {
             roughness: 0,
             exposure: 0.7,
             textureEncoding: 'sRGB',
-            steerDirection: ""
+            steerDirection: "",
+            isDay: true,
+            backLightsOnColor: new THREE.Color(0xFFFFFF),
+            backLightsOffColor: new THREE.Color(0x000000),
+            dayLightColor: new THREE.Color(0xFFFFFF),
+            nightLightColor: new THREE.Color(0x333333),
+            backgroundLight: 1
         };
 
         this.prevTime = 0;
@@ -113,17 +119,7 @@ class WebGL {
         this.controls.dampingFactor = 0.05;
 
         // Background
-        this.background = new THREE.CubeTextureLoader()
-            .setPath("environment/envSky/")
-            .load([
-                'px.jpg',
-                'nx.jpg',
-                'py.jpg',
-                'ny.jpg',
-                'pz.jpg',
-                'nz.jpg'
-            ]);
-        this.scene.background = this.background;
+        this.addBackgroundEnv();
 
         // Animate
         this.animate = this.animate.bind(this);
@@ -146,7 +142,7 @@ class WebGL {
             this.rotateWheels();
         }
 
-        // console.log(`Camera position x: ${this.camera.position.x} - y: ${this.camera.position.y} - z: ${this.camera.position.z}`)
+        console.log(`camera x: ${Math.round(this.camera.position.x)} - y: ${Math.round(this.camera.position.y)} - z: ${Math.round(this.camera.position.z)}`)
 
         this.prevTime = time;
     }
@@ -228,8 +224,6 @@ class WebGL {
             document.getElementById("preload_screen").style.display = "none";
         }, 500)
 
-        window.content = this.content;
-        console.info('[glTF Loader] THREE.Scene exported as `window.content`.');
         this.addGUI();
 
     }
@@ -253,7 +247,7 @@ class WebGL {
         const shadowTexture = new THREE.TextureLoader().load("shadow.jpg");
 
         // Plane
-        const shadowPlane = new THREE.PlaneBufferGeometry(size*1.1, size * 1.1);
+        const shadowPlane = new THREE.PlaneBufferGeometry(size * 1.1, size * 1.1);
         shadowPlane.rotateX(-Math.PI / 2);
         shadowPlane.translate(1.56, 0, 0);
 
@@ -284,18 +278,20 @@ class WebGL {
         this.renderer.toneMappingExposure = this.state.exposure;
     }
     addLights() {
+        const lightColor = this.state.isDay ? this.state.dayLightColor : this.state.nightLightColor;
+
         // light 1
-        const light1 = new THREE.AmbientLight(0xFFFFFF, 1);
+        const light1 = new THREE.AmbientLight(lightColor, 1);
         light1.name = 'ambient_light_1';
         this.camera.add(light1);
 
         // light 3
-        const light2 = new THREE.AmbientLight(0xFFFFFF, 0.5);
+        const light2 = new THREE.AmbientLight(lightColor, 0.5);
         light2.name = 'ambient_light_2';
         this.camera.add(light2);
 
         // light 3
-        const light3 = new THREE.AmbientLight(0xFFFFFF, 0.3);
+        const light3 = new THREE.AmbientLight(lightColor, 0.3);
         light3.name = 'ambient_light_3';
         this.camera.add(light3);
 
@@ -321,40 +317,57 @@ class WebGL {
         this.lights.forEach((light) => light.parent.remove(light));
         this.lights.length = 0;
     }
+    addBackgroundEnv() {
+        this.background = new THREE.CubeTextureLoader()
+            .setPath("environment/envSky/")
+            .load([
+                'px.jpg',
+                'nx.jpg',
+                'py.jpg',
+                'ny.jpg',
+                'pz.jpg',
+                'nz.jpg'
+            ]);
+        this.scene.background = this.background; // new THREE.Color(0x333333)
+    }
     updateEnvironment() {
         const ignore = [
             "lastic",
-            "dakhele_mashin"
+            "dakhele_mashin",
         ];
+
         this.getCubeMapTexture().then(({ envMap }) => {
             this.traverseMaterials(this.content, (material) => {
                 const name = material.name.toLowerCase();
-                const isGlass = name.includes("shishe");
+
+                // make body and glasses shine and metalness
                 if (!ignore.some(v => name.indexOf(v) >= 0)) {
                     material.envMap = envMap;
                     material.envMapIntensity = this.state.envMapIntensity;
                     material.emissiveIntensity = this.state.emissiveIntensity;
                     material.refractionRatio = this.state.refractionRatio;
-                    // material.metalness = isGlass ? 0.01 : this.state.metalness;
                     material.metalness = this.state.metalness;
                     material.roughness = this.state.roughness;
                     material.needsUpdate = true;
                 }
-                if(name === "lastic"){
+
+                // reduce lastics metalness
+                if (name === "lastic") {
                     material.envMap = envMap;
                     material.metalness = 0.1;
                     material.roughness = 0.5;
                     material.needsUpdate = true;
                 }
-                if(material.name === "Dakhel_mashin"){
-                    material.envMap = envMap;
-                    material.metalness = 0;
-                    material.roughness = 0.5;
-                    material.needsUpdate = true;
+
+                // emissive back lights
+                if (name === "cheragh_tormoz_aghab") {
+                    material.emissive = !this.state.isDay ? this.state.backLightsOnColor : this.state.backLightsOffColor;
+                    material.emissiveIntensity = !this.state.isDay ? 20 : 0;
+                    material.color = !this.state.isDay ? this.state.backLightsOnColor : this.state.backLightsOffColor;
                 }
-                // if (material.isMeshStandardMaterial || material.isGLTFSpecularGlossinessMaterial) {}
             });
         });
+        
         this.updateTextureEncoding();
     }
     getCubeMapTexture() {
@@ -415,7 +428,9 @@ class WebGL {
             "WheelFR",
             "WheelFL",
             "Cheagh_jelo",
-            "lastik"
+            "lastik",
+            "shishe_ghrmez",
+            ""
         ].map((name) => {
             this.content.traverse((node) => (node.name === name || node.name.toLowerCase().includes(name) && node.name !== "lastik_saghf") && this.carObjects.push(node));
         })
@@ -659,10 +674,13 @@ class WebGL {
         const exposure = lightsFolder.add(this.state, "exposure", 0, 2);
         exposure.onChange(() => this.updateLights())
 
+        // const background = lightsFolder.add(this.state, "backgroundLight", 0, 1);
+        // background.onChange(() => this.addBackgroundEnv())
+
         // Wheels
-        // const wheelsFolder = gui.addFolder("Wheels");
-        // const wheelSpeed = wheelsFolder.add(this.state, "wheelSpeed", 0, 1);
-        // wheelSpeed.onChange(() => this.rotateWheels())
+        const wheelsFolder = gui.addFolder("Wheels");
+        const wheelsSpeed = wheelsFolder.add(this.state, "wheelSpeed", 0, 0.5);
+        wheelsSpeed.onChange(() => this.rotateWheels());
     }
     traverseMaterials(object, callback) {
         object.traverse((node) => {
