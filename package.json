@@ -21,7 +21,7 @@
     "parcel-plugin-asset-copier": "^1.0.0",
     "parcel-plugin-static-files-copy": "^2.2.1",
     "shx": "^0.3.2",
-    "three": "0.110.0"
+    "three": "0.137.0"
   },
   "staticFiles": {
     "staticPath": "static",
